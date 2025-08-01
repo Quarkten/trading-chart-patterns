@@ -14,9 +14,9 @@ def main():
     for chart patterns.
     """
     # --- Configuration ---
-    input_image_path = "chart.png"
-    output_image_path = "annotated_chart_hybrid.png"
-    yolo_model_path = "/home/jules/.pyenv/runs/detect/train2/weights/best.pt"
+    input_image_path = "dataset/images/train/AAPL.png" # Test with one of the new images
+    output_image_path = "annotated_chart_final.png"
+    yolo_model_path = "/home/jules/.pyenv/runs/detect/train3/weights/best.pt" # Path to the NEW model
 
     # --- Final list for all annotations ---
     patterns_for_annotation = []
@@ -45,7 +45,7 @@ def main():
     else:
         try:
             model = YOLO(yolo_model_path)
-            results = model.predict(source=input_image_path, conf=0.25)
+            results = model.predict(source=input_image_path, conf=0.1) # Lowered confidence threshold
 
             names = model.names
             for r in results:

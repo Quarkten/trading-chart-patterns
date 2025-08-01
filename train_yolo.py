@@ -15,7 +15,7 @@ def main():
     # The 'data' argument points to our YAML file which describes the dataset.
     results = model.train(
         data='dataset/data.yaml',
-        epochs=20,          # A small number of epochs for a quick proof-of-concept
+        epochs=50,          # Increased epochs for a larger dataset
         batch=4,            # A small batch size to fit within memory
         imgsz=640,          # Resize images to 640x640 for training
         patience=0,         # Disable early stopping for this demo
