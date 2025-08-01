@@ -4,80 +4,50 @@ from typing import List, Tuple
 
 from src.annotator import annotate_image
 from src.detectors.candlestick_detector import detect_patterns
-from src.sample_data import get_sample_candles
-from src.data_structures import Candle
-
-def map_candle_to_bbox(candle_index: int) -> Tuple[int, int, int, int]:
-    """
-    Maps a candle's index to a bounding box on the chart.png image.
-
-    This is a temporary function for visualization purposes. The coordinates
-    are estimated based on the visual layout of the specific 'chart.png' image.
-
-    Args:
-        candle_index: The index of the candle in the sequence.
-
-    Returns:
-        A tuple representing the bounding box: (x, y, w, h).
-    """
-    # Magic numbers based on visual inspection of chart.png
-    start_x = 50  # The x-coordinate of the first candle
-    candle_width = 20  # The approximate width of a single candle
-    spacing = 10  # The space between candles
-
-    # Calculate the top-left x coordinate
-    x = start_x + candle_index * (candle_width + spacing)
-
-    # Use fixed y, w, h for simplicity for now
-    y = 100
-    w = candle_width
-    h = 200
-
-    return (x, y, w, h)
+from src.image_parser import ImageParser
 
 def main():
     """
-    Main function to run the candlestick pattern detection and annotation pipeline.
+    Main function to run the full image-based chart pattern detection pipeline.
     """
     # --- Configuration ---
     input_image_path = "chart.png"
-    output_image_path = "annotated_chart_with_rules.png"
+    output_image_path = "annotated_chart_from_image.png"
 
-    # --- Check for Input Image ---
-    if not os.path.exists(input_image_path):
-        print(f"Error: Input image not found at '{input_image_path}'.")
+    # --- 1. Parse the Image to Extract OHLC Data ---
+    print("Parsing chart image to extract candle data...")
+    try:
+        parser = ImageParser(input_image_path)
+        # We need both the Candle objects and their original bounding boxes for annotation
+        candles_with_data, candle_bboxes = parser.extract_candles_with_bboxes()
+        print(f"Successfully extracted {len(candles_with_data)} candles from the image.")
+    except Exception as e:
+        print(f"An error occurred during image parsing: {e}")
         return
 
-    # --- Load Image ---
-    image = cv2.imread(input_image_path)
-    if image is None:
-        print(f"Error: Failed to load image from '{input_image_path}'.")
-        return
+    # --- 2. Detect Patterns in the Extracted Data ---
+    print("Detecting patterns in extracted data...")
+    candles_with_patterns = detect_patterns(candles_with_data)
 
-    # --- Get and Process Data ---
-    print("Loading sample candlestick data...")
-    candles = get_sample_candles()
-
-    print("Detecting patterns...")
-    candles_with_patterns = detect_patterns(candles)
-
-    # --- Prepare Annotations ---
+    # --- 3. Prepare Annotations ---
     patterns_for_annotation = []
-    for candle in candles_with_patterns:
+    for i, candle in enumerate(candles_with_patterns):
         if candle.pattern:
             print(f"  - Found '{candle.pattern}' pattern at index {candle.index}")
-            bbox = map_candle_to_bbox(candle.index)
-            is_bullish = candle.is_bullish  # Color based on the candle's nature
+            # Use the actual bounding box from segmentation
+            bbox = candle_bboxes[i]
+            is_bullish = candle.is_bullish
             patterns_for_annotation.append((*bbox, candle.pattern, is_bullish))
 
-    # --- Annotate Image ---
+    # --- 4. Annotate and Save the Image ---
     if not patterns_for_annotation:
         print("No patterns detected to annotate.")
     else:
         print("Annotating image with detected patterns...")
-        annotated_image = annotate_image(image, patterns_for_annotation)
+        # Load the original image again for annotation
+        original_image = cv2.imread(input_image_path)
+        annotated_image = annotate_image(original_image, patterns_for_annotation)
 
-        # --- Save Annotated Image ---
         cv2.imwrite(output_image_path, annotated_image)
         print(f"Annotation complete. Annotated image saved to '{output_image_path}'.")
 
