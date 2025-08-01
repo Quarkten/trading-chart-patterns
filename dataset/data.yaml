@@ -1,0 +1,6 @@
+names:
+- triangle
+- flag
+nc: 2
+train: ../dataset/images/train/
+val: ../dataset/images/train/
