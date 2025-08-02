@@ -33,6 +33,27 @@ def _is_hammer(candle: Candle) -> bool:
 
     return long_lower_wick and short_upper_wick
 
+def _is_bullish_engulfing(current_candle: Candle, prev_candle: Candle) -> bool:
+    """
+    Identifies a Bullish Engulfing pattern.
+    A small red candle is engulfed by a larger green candle.
+    """
+    if not (prev_candle.is_bearish and current_candle.is_bullish):
+        return False
+
+    # Check if the current body engulfs the previous body
+    return current_candle.open < prev_candle.close and current_candle.close > prev_candle.open
+
+def _is_bearish_engulfing(current_candle: Candle, prev_candle: Candle) -> bool:
+    """
+    Identifies a Bearish Engulfing pattern.
+    A small green candle is engulfed by a larger red candle.
+    """
+    if not (prev_candle.is_bullish and current_candle.is_bearish):
+        return False
+
+    return current_candle.open > prev_candle.close and current_candle.close < prev_candle.open
+
 def detect_patterns(candles: List[Candle]) -> List[Candle]:
     """
     Detects candlestick patterns in a list of candles.
@@ -47,11 +68,22 @@ def detect_patterns(candles: List[Candle]) -> List[Candle]:
     Returns:
         The same list of Candle objects with the `pattern` attribute updated.
     """
-    for candle in candles:
-        # Check for each pattern. Add more checks here as more patterns are implemented.
-        if _is_doji(candle):
-            candle.pattern = "Doji"
-        elif _is_hammer(candle):
-            candle.pattern = "Hammer"
+    # Start from the second candle so we can always look at the previous one
+    for i in range(1, len(candles)):
+        current_candle = candles[i]
+        prev_candle = candles[i-1]
+
+        # Check for single-candle patterns on the current candle
+        if _is_doji(current_candle):
+            current_candle.pattern = "Doji"
+        elif _is_hammer(current_candle):
+            current_candle.pattern = "Hammer"
+
+        # Check for two-candle patterns
+        # We assign the pattern to the *second* candle in the sequence
+        elif _is_bullish_engulfing(current_candle, prev_candle):
+            current_candle.pattern = "Bullish Engulfing"
+        elif _is_bearish_engulfing(current_candle, prev_candle):
+            current_candle.pattern = "Bearish Engulfing"
 
     return candles
