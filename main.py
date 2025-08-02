@@ -10,10 +10,10 @@ def main():
     a visual output of a detected pattern.
     """
     # --- Configuration ---
-    input_image_path = "chart.png"
-    output_image_path = "annotated_chart_with_poc_model.png"
-    # Path to the FIRST proof-of-concept model
-    yolo_model_path = "/home/jules/.pyenv/runs/detect/train2/weights/best.pt"
+    input_image_path = "dataset/images/train/AAPL.png"
+    output_image_path = "final_annotated_image.png"
+    # Path to the FINAL model
+    yolo_model_path = "/home/jules/.pyenv/runs/detect/train7/weights/best.pt"
 
     print(f"--- Running Proof-of-Concept Model on {input_image_path} ---")
 
