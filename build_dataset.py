@@ -38,7 +38,10 @@ def main():
     print("--- Starting Dataset Generation ---")
 
     # --- Configuration ---
-    tickers = ["AAPL", "GOOGL", "MSFT"] # A small list of tickers for demonstration
+    tickers = [
+        "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA",
+        "NVDA", "JPM", "V", "JNJ", "WMT"
+    ] # A larger, more diverse list of tickers
     end_date = date.today()
     start_date = end_date - timedelta(days=365 * 2) # Fetch 2 years of data
 
@@ -101,83 +104,66 @@ def generate_chart_and_labels(ticker: str, aggs: list):
     ax.set_title(f"{ticker} Stock Chart")
     ax.set_facecolor('lightgray')
 
-    # Store bounding boxes as we draw
-    candle_bboxes_pixels = []
+    # Store the artist objects for each candle (body and wick)
+    candle_artists = []
 
     for candle in candles:
         color = 'green' if candle.is_bullish else 'red'
         # Draw the wick (high-low line)
-        ax.plot([candle.index, candle.index], [candle.low, candle.high], color=color, linewidth=1)
+        wick = ax.plot([candle.index, candle.index], [candle.low, candle.high], color=color, linewidth=1)[0]
         # Draw the body (open-close rectangle)
         body = plt.Rectangle((candle.index - 0.4, candle.open), 0.8, candle.close - candle.open, color=color)
         ax.add_patch(body)
+        candle_artists.append({'body': body, 'wick': wick})
 
     ax.autoscale_view()
 
-    # --- 3. Create Labels from Accurate Bounding Boxes ---
-    img_width, img_height = fig.get_size_inches() * fig.dpi
-    label_path = f"dataset/labels/train/{ticker}.txt"
+    # --- 3. Create Labels using Precise Bounding Boxes from Artists ---
+    fig.canvas.draw()
 
-    # Get the transformation from data coordinates to pixel coordinates
-    trans = ax.transData.inverted()
+    label_path = f"dataset/labels/train/{ticker}.txt"
+    img_width, img_height = fig.canvas.get_width_height()
 
     with open(label_path, 'w') as f:
         for candle in patterns_to_label:
-            # Define the candle's bounding box in data coordinates
-            # This is the full extent of the candle (high to low)
-            x_data, y_data_high = candle.index, candle.high
-            y_data_low = candle.low
+            # Get the artists for the candle with the pattern
+            artists = candle_artists[candle.index]
+            body_bbox = artists['body'].get_window_extent()
+            wick_bbox = artists['wick'].get_window_extent()
 
-            # We need to find the pixel coordinates of the four corners of the box
-            # This is a more robust way than estimating.
-            # However, a fully robust implementation is very complex.
-            # Let's use a refined estimation based on the axis limits.
-            xlim = ax.get_xlim()
-            ylim = ax.get_ylim()
+            # The full bounding box of the candle is the union of the body and wick boxes
+            x_min_pixel = min(body_bbox.x0, wick_bbox.x0)
+            x_max_pixel = max(body_bbox.x1, wick_bbox.x1)
+            y_min_pixel = min(body_bbox.y0, wick_bbox.y0)
+            y_max_pixel = max(body_bbox.y1, wick_bbox.y1)
 
-            # Calculate a simple linear mapping
-            x_range_data = xlim[1] - xlim[0]
-            y_range_data = ylim[1] - ylim[0]
+            # The y-coordinates from matplotlib are from the bottom-left,
+            # so we need to invert them for top-left origin used in images.
+            y_top_pixel_inverted = img_height - y_max_pixel
+            y_bottom_pixel_inverted = img_height - y_min_pixel
 
-            # We need to account for the plot's padding/margins. We'll estimate this.
-            padding_x = 0.1 * img_width
-            padding_y = 0.1 * img_height
-            plot_width_pixels = img_width * 0.8
-            plot_height_pixels = img_height * 0.8
+            # Convert to YOLO format (x_center, y_center, width, height) normalized
+            x_center_yolo = ((x_min_pixel + x_max_pixel) / 2) / img_width
+            y_center_yolo = ((y_top_pixel_inverted + y_bottom_pixel_inverted) / 2) / img_height
+            width_yolo = (x_max_pixel - x_min_pixel) / img_width
+            height_yolo = (y_bottom_pixel_inverted - y_top_pixel_inverted) / img_height
 
-            # Map data to pixel space
-            x_norm = (candle.index - xlim[0]) / x_range_data
-            y_high_norm = (candle.high - ylim[0]) / y_range_data
-            y_low_norm = (candle.low - ylim[0]) / y_range_data
+            # Get class ID
+            if candle.pattern == "Doji": class_id = 0
+            elif candle.pattern == "Hammer": class_id = 1
+            elif candle.pattern == "Bullish Engulfing": class_id = 2
+            elif candle.pattern == "Bearish Engulfing": class_id = 3
+            else: continue
 
-            # Candle body width in normalized data coords (0.8)
-            candle_width_data = 0.8
-
-            # Convert to pixel coordinates
-            x_center_pixel = padding_x + x_norm * plot_width_pixels
-            width_pixel = (candle_width_data / x_range_data) * plot_width_pixels
-
-            # Y is inverted in pixel coordinates
-            y_top_pixel = padding_y + (1 - y_high_norm) * plot_height_pixels
-            y_bottom_pixel = padding_y + (1 - y_low_norm) * plot_height_pixels
-            height_pixel = y_bottom_pixel - y_top_pixel
-
-            # Convert to YOLO format
-            x_center_yolo = x_center_pixel / img_width
-            y_center_yolo = (y_top_pixel + y_bottom_pixel) / 2.0 / img_height
-            width_yolo = width_pixel / img_width
-            height_yolo = height_pixel / img_height
-
-            class_id = 0 if candle.pattern == "Doji" else 1
             f.write(f"{class_id} {x_center_yolo} {y_center_yolo} {width_yolo} {height_yolo}\n")
 
-    # Save the image *after* we've calculated the final transforms
+    print(f"Saved labels for {ticker} to {label_path}")
+
+    # Now, save the image file
     img_path = f"dataset/images/train/{ticker}.png"
-    plt.savefig(img_path)
+    fig.savefig(img_path)
     plt.close(fig) # Close the figure to free up memory
     print(f"Saved chart for {ticker} to {img_path}")
-
-    print(f"Saved labels for {ticker} to {label_path}")
 
 
 
