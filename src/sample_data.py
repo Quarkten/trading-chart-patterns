@@ -21,9 +21,18 @@ def get_sample_candles() -> List[Candle]:
         Candle(index=3, open=101.1, high=108, low=100, close=107),
 
         # A Hammer pattern: small body, long lower wick, short upper wick
-        Candle(index=4, open=102, high=103, low=95, close=102.5), # body=0.5, lower_wick=7.5
+        Candle(index=4, open=102, high=103, low=95, close=102.5),
 
-        # Final normal candle
-        Candle(index=5, open=102.5, high=110, low=102, close=109),
+        # A normal candle to precede the engulfing pattern
+        Candle(index=5, open=102.5, high=105, low=101, close=102), # Small red candle
+
+        # A Bullish Engulfing candle
+        Candle(index=6, open=101, high=108, low=100, close=107), # Large green candle that engulfs the previous one
+
+        # Another normal candle
+        Candle(index=7, open=107, high=110, low=106, close=109), # Small green candle
+
+        # A Bearish Engulfing candle
+        Candle(index=8, open=110, high=111, low=105, close=106), # Large red candle that engulfs the previous one
     ]
     return sample_candles

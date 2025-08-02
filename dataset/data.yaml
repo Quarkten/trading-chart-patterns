@@ -1,6 +1,5 @@
-names:
-- triangle
-- flag
-nc: 2
 train: ../dataset/images/train/
 val: ../dataset/images/train/
+
+nc: 4
+names: ['Doji', 'Hammer', 'Bullish Engulfing', 'Bearish Engulfing']
