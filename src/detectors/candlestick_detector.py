@@ -63,29 +63,59 @@ def _is_bearish_engulfing(current: Candle, prev: Candle) -> bool:
 
     return engulfs and is_significant
 
+def _is_marubozu(candle: Candle) -> bool:
+    """
+    Identifies a Marubozu candle (full body, no shadows).
+    Rule: Body size is > 95% of the total candle range.
+    """
+    total_range = candle.high - candle.low
+    if total_range == 0: return False
+    return candle.body_size / total_range > 0.95
+
+def _is_tweezer_top(current: Candle, prev: Candle) -> bool:
+    """
+    Identifies a Tweezer Top pattern.
+    Rule: Two consecutive candles with nearly matching highs, occurring in an uptrend.
+    """
+    if prev.is_bearish: return False # First candle should be bullish in a Tweezer Top
+    tolerance = prev.high * 0.001
+    return abs(prev.high - current.high) < tolerance
+
+def _is_tweezer_bottom(current: Candle, prev: Candle) -> bool:
+    """
+    Identifies a Tweezer Bottom pattern.
+    Rule: Two consecutive candles with nearly matching lows, occurring in a downtrend.
+    """
+    if prev.is_bullish: return False # First candle should be bearish in a Tweezer Bottom
+    tolerance = prev.low * 0.001
+    return abs(prev.low - current.low) < tolerance
+
 def detect_patterns(candles: List[Candle]) -> List[Candle]:
     """
     Detects candlestick patterns in a list of candles with improved confidence logic.
     """
-    # Clear any previous patterns
     for c in candles:
         c.pattern = None
 
-    # Start from index 3 to have enough history for trend checks
     for i in range(3, len(candles)):
         current_candle = candles[i]
         prev_candle = candles[i-1]
 
-        # Check for single-candle patterns on the current candle
-        if _is_doji(current_candle):
-            current_candle.pattern = "Doji"
-        elif _is_hammer(current_candle, candles[i-3:i]):
-            current_candle.pattern = "Hammer"
-
-        # Check for two-candle patterns
+        # Check for the most specific patterns first.
+        # The order of these checks matters to avoid mislabeling.
+        if _is_marubozu(current_candle):
+            current_candle.pattern = "Marubozu"
         elif _is_bullish_engulfing(current_candle, prev_candle):
             current_candle.pattern = "Bullish Engulfing"
         elif _is_bearish_engulfing(current_candle, prev_candle):
             current_candle.pattern = "Bearish Engulfing"
+        elif _is_tweezer_top(current_candle, prev_candle):
+            current_candle.pattern = "Tweezer Top"
+        elif _is_tweezer_bottom(current_candle, prev_candle):
+            current_candle.pattern = "Tweezer Bottom"
+        elif _is_doji(current_candle):
+            current_candle.pattern = "Doji"
+        elif _is_hammer(current_candle, candles[i-3:i]):
+            current_candle.pattern = "Hammer"
 
     return candles
