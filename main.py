@@ -5,19 +5,20 @@ from src.annotator import annotate_image
 
 def main():
     """
-    Main function to demonstrate the final, improved chart pattern detection
-    using the retrained YOLOv8 model.
+    This script is for demonstration purposes. It runs the first
+    proof-of-concept YOLO model on the original chart.png to show
+    a visual output of a detected pattern.
     """
     # --- Configuration ---
-    input_image_path = "dataset/images/train/AAPL.png"
-    output_image_path = "final_annotated_chart.png"
-    # Path to the latest and best trained model
-    yolo_model_path = "/home/jules/.pyenv/runs/detect/train6/weights/best.pt"
+    input_image_path = "chart.png"
+    output_image_path = "annotated_chart_with_poc_model.png"
+    # Path to the FIRST proof-of-concept model
+    yolo_model_path = "/home/jules/.pyenv/runs/detect/train2/weights/best.pt"
 
-    print(f"--- Running Final Model on {input_image_path} ---")
+    print(f"--- Running Proof-of-Concept Model on {input_image_path} ---")
 
     if not os.path.exists(yolo_model_path):
-        print(f"Error: Final YOLOv8 model not found at '{yolo_model_path}'.")
+        print(f"Error: YOLOv8 model not found at '{yolo_model_path}'.")
         return
 
     if not os.path.exists(input_image_path):
@@ -28,8 +29,8 @@ def main():
     patterns_for_annotation = []
     try:
         model = YOLO(yolo_model_path)
-        # Use a higher confidence threshold as the model should be more accurate
-        results = model.predict(source=input_image_path, conf=0.5)
+        # Use a low confidence threshold to ensure we see the result
+        results = model.predict(source=input_image_path, conf=0.1)
 
         names = model.names
         for r in results:
@@ -40,15 +41,13 @@ def main():
                 label = names[cls_id]
                 conf = float(box.conf[0])
                 print(f"  - Found Pattern: '{label}' with confidence {conf:.2f}")
-                # Color bullish patterns green, bearish red
-                is_bullish = "Bullish" in label or "Doji" in label or "Hammer" in label
-                patterns_for_annotation.append((*bbox, label, is_bullish))
+                patterns_for_annotation.append((*bbox, label, True))
     except Exception as e:
         print(f"An error occurred during YOLOv8 detection: {e}")
 
     # --- Annotate and Save the Image ---
     if not patterns_for_annotation:
-        print("\nNo high-confidence patterns were detected by the final model.")
+        print("\nNo patterns were detected.")
     else:
         print(f"\nFound {len(patterns_for_annotation)} patterns. Annotating image...")
         original_image = cv2.imread(input_image_path)
