@@ -1,5 +1,5 @@
 train: ../dataset/images/train/
 val: ../dataset/images/train/
 
-nc: 4
-names: ['Doji', 'Hammer', 'Bullish Engulfing', 'Bearish Engulfing']
+nc: 7
+names: ['Doji', 'Hammer', 'Bullish Engulfing', 'Bearish Engulfing', 'Marubozu', 'Tweezer Top', 'Tweezer Bottom']

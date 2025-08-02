@@ -10,10 +10,10 @@ def main():
     a visual output of a detected pattern.
     """
     # --- Configuration ---
-    input_image_path = "chart.png"
-    output_image_path = "annotated_chart_with_poc_model.png"
-    # Path to the FIRST proof-of-concept model
-    yolo_model_path = "/home/jules/.pyenv/runs/detect/train2/weights/best.pt"
+    input_image_path = "dataset/images/train/AAPL.png"
+    output_image_path = "debug_labels_AAPL.png"
+    # Path to the FINAL model
+    yolo_model_path = "/home/jules/.pyenv/runs/detect/train7/weights/best.pt"
 
     print(f"--- Running Proof-of-Concept Model on {input_image_path} ---")
 
@@ -30,7 +30,7 @@ def main():
     try:
         model = YOLO(yolo_model_path)
         # Use a low confidence threshold to ensure we see the result
-        results = model.predict(source=input_image_path, conf=0.1)
+        results = model.predict(source=input_image_path, conf=0.2)
 
         names = model.names
         for r in results:

@@ -107,10 +107,14 @@ def main():
 
     client = get_polygon_client()
 
+    import time
     for ticker in tickers:
         data = fetch_stock_data(client, ticker, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
         if data:
             generate_chart_and_labels(ticker, data)
+        # Add a delay to respect API rate limits (free tier is 5 calls/min)
+        print("Waiting 15 seconds to respect API rate limits...")
+        time.sleep(15)
 
     print("\n--- Dataset Generation Complete ---")
 
