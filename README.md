@@ -1,73 +1,93 @@
-# Reinforcement Learning-Powered Stock Chart Pattern Detection
+# Stock Chart Pattern Detector
 
-This project uses a combination of computer vision and deep learning, specifically the YOLOv8 model, to detect candlestick patterns in stock chart images. The goal is to create a system that can automatically identify and label common patterns like "Doji," "Hammer," "Bullish Engulfing," and "Bearish Engulfing."
+Welcome to the Stock Chart Pattern Detector! This tool is designed to help you automatically identify common candlestick patterns in stock chart images. Whether you're a seasoned trader or just starting out, this project can help you to spot trends and make more informed decisions.
 
-## Project Overview
+## What Does It Do?
 
-The project is structured as a pipeline that includes the following key components:
+At its core, this project uses a powerful computer vision model called YOLOv8 to "look" at stock chart images and identify candlestick patterns. It can recognize patterns like:
 
-1.  **Data Generation**: A script (`build_dataset.py`) that fetches historical stock data from the [Polygon.io](https://polygon.io/) API, generates candlestick charts using Matplotlib, and automatically creates labeled datasets in the YOLO format.
-2.  **Model Training**: A script (`train_yolo.py`) that uses the generated dataset to train a YOLOv8 object detection model. The model learns to identify and locate the different candlestick patterns on the charts.
-3.  **Inference and Annotation**: A main script (`main.py`) that loads the trained model and runs it on new chart images to detect patterns. The script then uses an annotator module to draw bounding boxes and labels on the image, providing a visual representation of the detected patterns.
+*   **Doji**: Indicates indecision in the market.
+*   **Hammer**: A bullish reversal pattern.
+*   **Bullish Engulfing**: A strong bullish reversal pattern.
+*   **Bearish Engulfing**: A strong bearish reversal pattern.
+*   And many more!
 
-## Key Technologies
+The project is a pipeline that consists of three main parts:
 
-*   **Python**: The primary programming language used for the project.
-*   **YOLOv8**: A state-of-the-art, real-time object detection model used for identifying the candlestick patterns.
-*   **PyTorch**: The deep learning framework used by YOLOv8.
-*   **OpenCV**: A computer vision library used for image processing and annotation.
-*   **Matplotlib**: A plotting library used to generate the candlestick charts for the training dataset.
-*   **Polygon.io**: A financial data platform used to source the historical stock data.
+1.  **Data Generation**: We fetch real stock data, create candlestick charts, and automatically label the patterns on them. This creates a dataset that we can use to teach our model.
+2.  **Model Training**: We take the dataset we generated and use it to train the YOLOv8 model. This is like teaching the model what each pattern looks like.
+3.  **Pattern Detection**: Once the model is trained, we can give it a new stock chart image, and it will draw boxes around the patterns it recognizes, telling you what they are.
 
-## File Descriptions
+## Getting Started
 
-*   `build_dataset.py`: Fetches stock data, generates charts, and creates YOLO labels.
-*   `train_yolo.py`: Trains the YOLOv8 model on the custom dataset.
-*   `main.py`: Runs inference with the trained model and annotates chart images.
-*   `prepare_dataset.py`: Prepares a small, proof-of-concept dataset (used for initial testing).
-*   `verify_labels.py`: A utility script to visually inspect the generated labels.
-*   `src/`: This directory contains the core modules of the project:
-    *   `annotator.py`: Contains the function for drawing annotations on images.
-    *   `data_structures.py`: Defines the `Candle` data class.
-    *   `detectors/candlestick_detector.py`: Contains the logic for detecting candlestick patterns.
-    *   `image_parser.py`: Parses chart images to extract candle data (work in progress).
-    *   `sample_data.py`: Provides sample data for testing.
+Ready to give it a try? Here's how to get up and running.
 
-## How to Run
+### Step 1: Set Up Your Environment
 
-### 1. Set up the Environment
+First, you'll need to install the necessary Python libraries. We've included a `requirements.txt` file to make this easy. Just open your terminal or command prompt and run the following command:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Generate the Dataset
+### Step 2: Get a Polygon.io API Key
 
-To generate the dataset, you will need a Polygon.io API key. Set the `POLYGON_API_KEY` environment variable and then run the following command:
+To get the stock data, we use a service called [Polygon.io](https://polygon.io/). You'll need to sign up for a free account and get an API key. Once you have your key, you'll need to set it as an environment variable.
+
+*   **On macOS or Linux**:
+    ```bash
+    export POLYGON_API_KEY="YOUR_API_KEY"
+    ```
+*   **On Windows**:
+    ```bash
+    set POLYGON_API_KEY="YOUR_API_KEY"
+    ```
+
+    (Replace `"YOUR_API_KEY"` with the key you got from Polygon.io)
+
+### Step 3: Generate the Dataset
+
+Now it's time to create the dataset that we'll use to train our model. This script will fetch data for several stocks, generate charts, and create the labels for them.
 
 ```bash
 python build_dataset.py
 ```
 
-### 3. Train the Model
+This might take a few minutes, as it needs to fetch a lot of data and generate the images.
 
-Once the dataset is generated, you can train the YOLOv8 model by running:
+### Step 4: Train the Model
+
+Once you have the dataset, you can train the model. This is the most important step, as it's where the model learns to recognize the patterns.
 
 ```bash
 python train_yolo.py
 ```
 
-### 4. Run Inference
+This process will also take some time, depending on your computer's hardware. You'll see a lot of output in your terminal as the model trains.
 
-To run inference on a new chart image, you can use the `main.py` script. Make sure to update the `input_image_path` and `yolo_model_path` variables in the script.
+### Step 5: Detect Patterns in a Chart
+
+Now for the fun part! You can use the `main.py` script to detect patterns in a stock chart image. We've included a sample image (`AAPL.png`) in the `dataset/images/train` directory that you can use to test it out.
 
 ```bash
 python main.py
 ```
 
-## Future Work
+This will run the model on the `AAPL.png` image and save a new image called `debug_labels_AAPL.png` with the detected patterns highlighted.
 
-*   **Improve Model Accuracy**: The current model is trained on a small dataset and has limited accuracy. The next step is to expand the dataset and fine-tune the model to improve its performance.
-*   **Add More Patterns**: The candlestick detector can be extended to identify a wider range of patterns.
-*   **Real-Time Analysis**: The ultimate goal is to create a system that can perform real-time analysis of stock charts. This will involve integrating the model with a live data feed and optimizing the inference process for speed.
-*   **Reinforcement Learning**: The project name mentions reinforcement learning, which is a planned future addition. The idea is to use RL to optimize trading strategies based on the detected patterns.
+## Understanding the Output
+
+When you run the `main.py` script, it will create a new image file with bounding boxes drawn around the patterns it has detected. Each box will have a label indicating the name of the pattern.
+
+*   **Green boxes** indicate bullish patterns (patterns that suggest the price might go up).
+*   **Red boxes** indicate bearish patterns (patterns that suggest the price might go down).
+
+## What's Next?
+
+This project is a great starting point, but there's always room for improvement. Here are a few ideas for how you could take it to the next level:
+
+*   **Add More Patterns**: You can extend the `src/detectors/candlestick_detector.py` file to recognize even more patterns.
+*   **Use Your Own Charts**: You can modify the `main.py` script to run on your own stock chart images.
+*   **Improve the Model**: You can try to improve the model's accuracy by experimenting with different training settings in the `train_yolo.py` script.
+
+We hope you enjoy using the Stock Chart Pattern Detector! If you have any questions or ideas for improvement, please feel free to contribute to the project.
