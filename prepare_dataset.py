@@ -25,8 +25,8 @@ def main():
 
     # Define the class names and their corresponding integer IDs
     CLASSES = {
-        "triangle": 0,
-        "flag": 1
+        "Doji": 0, "Hammer": 1, "Bullish Engulfing": 2, "Bearish Engulfing": 3,
+        "Morning Star": 4, "Evening Star": 5, "Three White Soldiers": 6, "Three Black Crows": 7
     }
 
     # Define some hypothetical bounding boxes in pixel coordinates (xmin, ymin, xmax, ymax)
