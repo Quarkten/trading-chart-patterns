@@ -18,6 +18,7 @@ class DataFetcher:
     MAX_ALPACA_RETRIES = 3 # Reduced retries for quicker fallback
 
     def __init__(self, socketio=None):
+        self.should_run = True # Initialize should_run
         self.api_key = os.environ.get("ALPACA_API_KEY")
         self.secret_key = os.environ.get("ALPACA_SECRET_KEY")
         self.finnhub_api_key = os.environ.get("FINNHUB_API_KEY")
@@ -109,6 +110,9 @@ class DataFetcher:
                     print(f"An unexpected ValueError occurred with Alpaca: {e}. Retrying Alpaca...")
                     alpaca_retry_count += 1
                     await asyncio.sleep(BASE_DELAY * (2 ** (alpaca_retry_count - 1)))
+            except asyncio.CancelledError:
+                print("Alpaca stream cancelled gracefully.")
+                return # Exit the loop if cancelled
             except Exception as e:
                 print(f"An unexpected error occurred during Alpaca websocket communication: {e}. Retrying Alpaca...")
                 alpaca_retry_count += 1
