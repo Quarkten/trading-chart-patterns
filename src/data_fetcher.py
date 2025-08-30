@@ -5,6 +5,7 @@ import websockets
 from datetime import datetime, timedelta
 import pandas as pd
 from dotenv import load_dotenv
+import random
 
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
@@ -16,6 +17,7 @@ from alpaca.data.live import StockDataStream
 
 class DataFetcher:
     MAX_ALPACA_RETRIES = 3 # Reduced retries for quicker fallback
+    MAX_FINNHUB_RETRIES = 5 # Max retries for Finnhub websocket connection
 
     def __init__(self, socketio=None):
         self.should_run = True # Initialize should_run
@@ -28,7 +30,8 @@ class DataFetcher:
             print("Warning: FINNHUB_API_KEY environment variable not set. Finnhub real-time data will not be available.")
         self.stock_client = StockHistoricalDataClient(self.api_key, self.secret_key)
         self.socketio = socketio
-        self.websocket_client = StockDataStream(self.api_key, self.secret_key)
+        self.websocket_client = None
+        self.stream_loop = None
 
     async def _bar_data_handler(self, bar_data):
         # This handler now expects a dictionary with 'time', 'open', 'high', 'low', 'close', 'volume'
@@ -44,17 +47,24 @@ class DataFetcher:
 
         finnhub_ws_url = f"wss://ws.finnhub.io?token={self.finnhub_api_key}"
 
-        while self.should_run:
+        finnhub_retry_count = 0
+        BASE_FINNHUB_DELAY = 5 # seconds
+        while self.should_run and finnhub_retry_count < self.MAX_FINNHUB_RETRIES:
             try:
+                print(f"Attempting to connect to Finnhub websocket (Attempt {finnhub_retry_count + 1}/{self.MAX_FINNHUB_RETRIES})...")
                 async with websockets.connect(finnhub_ws_url) as websocket:
-                    print(f"Connected to Finnhub websocket for symbols: {symbols}")
+                    print(f"Successfully connected to Finnhub websocket for symbols: {symbols}")
+                    # Reset retry count on successful connection
+                    finnhub_retry_count = 0
                     # Subscribe to trades for each symbol
                     for symbol in symbols:
-                        await websocket.send(json.dumps({"type": "subscribe", "symbol": symbol}))
-                        print(f"Subscribed to Finnhub trades for {symbol}")
+                        subscribe_message = json.dumps({"type": "subscribe", "symbol": symbol})
+                        await websocket.send(subscribe_message)
+                        print(f"Sent subscription message for {symbol}: {subscribe_message}")
 
                     while self.should_run:
                         message = await websocket.recv()
+                        print(f"Received message from Finnhub: {message[:100]}...") # Log first 100 chars
                         data = json.loads(message)
 
                         # Finnhub sends different types of messages, we are interested in 'trade' messages
@@ -73,60 +83,60 @@ class DataFetcher:
                                     "volume": trade["v"]
                                 }
                                 await self._bar_data_handler(formatted_bar) # Pass dict directly
+                        else:
+                            print(f"Received non-trade message from Finnhub: {data}")
             except websockets.exceptions.ConnectionClosedOK:
                 print("Finnhub websocket connection closed gracefully.")
                 break
             except websockets.exceptions.ConnectionClosedError as e:
-                print(f"Finnhub websocket connection closed with error: {e}. Reconnecting...")
-                await asyncio.sleep(5) # Wait before reconnecting
+                delay = BASE_FINNHUB_DELAY * (2 ** finnhub_retry_count) + random.uniform(0, 2)
+                print(f"Finnhub websocket connection closed with error: {type(e).__name__}: {e}. Attempting to reconnect in {delay:.2f} seconds...")
+                finnhub_retry_count += 1
+                await asyncio.sleep(delay)
+            except websockets.exceptions.WebSocketException as e:
+                delay = BASE_FINNHUB_DELAY * (2 ** finnhub_retry_count) + random.uniform(0, 2)
+                print(f"A Finnhub WebSocket-specific error occurred: {type(e).__name__}: {e}. Attempting to reconnect in {delay:.2f} seconds...")
+                finnhub_retry_count += 1
+                await asyncio.sleep(delay)
             except Exception as e:
-                print(f"An unexpected error occurred with Finnhub websocket: {e}. Reconnecting...")
-                await asyncio.sleep(5) # Wait before reconnecting
+                delay = BASE_FINNHUB_DELAY * (2 ** finnhub_retry_count) + random.uniform(0, 2)
+                print(f"An unexpected error occurred with Finnhub websocket: {type(e).__name__}: {e}. Attempting to reconnect in {delay:.2f} seconds...")
+                finnhub_retry_count += 1
+                await asyncio.sleep(delay)
+        
+        if finnhub_retry_count >= self.MAX_FINNHUB_RETRIES:
+            print(f"Max Finnhub retries ({self.MAX_FINNHUB_RETRIES}) reached. Stopping Finnhub real-time stream attempts.")
 
     async def start_realtime_stream(self, symbols: list):
         print(f"Starting real-time stream for symbols: {symbols}")
         self.should_run = True
-        alpaca_retry_count = 0
-        # MAX_ALPACA_RETRIES = 3 # Reduced retries for quicker fallback
-        BASE_DELAY = 1  # seconds
-
-        # Try Alpaca first
-        while self.should_run and alpaca_retry_count < self.MAX_ALPACA_RETRIES:
-            try:
-                # Re-initialize websocket client on each attempt to ensure a clean state
-                self.websocket_client = StockDataStream(self.api_key, self.secret_key)
-                self.websocket_client.subscribe_bars(self._alpaca_bar_data_handler, *symbols) # Use specific handler for Alpaca
-                print("Attempting to connect to Alpaca WebSocket client...")
-                task = asyncio.create_task(self.websocket_client.run())
-                await task
-                print("Alpaca WebSocket client stopped gracefully.")
-                return # Exit if Alpaca stream runs successfully
-            except ValueError as e:
-                if "connection limit exceeded" in str(e):
-                    print(f"Alpaca connection limit exceeded. Retrying Alpaca in {BASE_DELAY * (2 ** alpaca_retry_count)} seconds...")
-                    alpaca_retry_count += 1
-                    await asyncio.sleep(BASE_DELAY * (2 ** (alpaca_retry_count - 1)))
-                else:
-                    print(f"An unexpected ValueError occurred with Alpaca: {e}. Retrying Alpaca...")
-                    alpaca_retry_count += 1
-                    await asyncio.sleep(BASE_DELAY * (2 ** (alpaca_retry_count - 1)))
-            except asyncio.CancelledError:
-                print("Alpaca stream cancelled gracefully.")
-                return # Exit the loop if cancelled
-            except Exception as e:
-                print(f"An unexpected error occurred during Alpaca websocket communication: {e}. Retrying Alpaca...")
-                alpaca_retry_count += 1
-                await asyncio.sleep(BASE_DELAY * (2 ** (alpaca_retry_count - 1)))
         
-        if alpaca_retry_count >= self.MAX_ALPACA_RETRIES:
-            print("Max Alpaca retries reached. Attempting to switch to Finnhub real-time stream.")
-            # Fallback to Finnhub
-            await self._finnhub_websocket_connect(symbols)
+        # Prioritize Finnhub for real-time data
+        await self._finnhub_websocket_connect(symbols)
+
+        # The Alpaca stream code is left here as a potential fallback,
+        # but it will not be executed if the Finnhub stream runs.
+        if self.should_run:
+            print("Attempting to connect to Alpaca WebSocket client as a fallback...")
+            try:
+                self.websocket_client = StockDataStream(self.api_key, self.secret_key)
+                self.websocket_client.subscribe_bars(self._alpaca_bar_data_handler, *symbols)
+                await self.websocket_client.run()
+                print("Alpaca WebSocket client stopped gracefully.")
+            except Exception as e:
+                print(f"Alpaca WebSocket stream failed: {type(e).__name__}: {e}.")
+            finally:
+                if self.websocket_client:
+                    try:
+                        await self.websocket_client.close()
+                        print("Alpaca WebSocket client closed in finally block.")
+                    except Exception as close_e:
+                        print(f"Error closing Alpaca WebSocket client in finally block: {close_e}")
 
     async def stop_realtime_stream(self):
         print("Stopping real-time stream...")
-        self.should_run = False
-        if self.websocket_client:
+        self.should_run = False # This will stop the Finnhub loop
+        if self.websocket_client and self.websocket_client.is_running:
             await self.websocket_client.close()
             print("Alpaca WebSocket client closed.")
         # No explicit close for Finnhub websockets as they are managed by the async with block

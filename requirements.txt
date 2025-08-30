@@ -3,5 +3,13 @@ numpy
 pytesseract
 Pillow
 ultralytics
-polygon-api-client
+alpaca-py
 matplotlib
+huggingface_hub
+python-dotenv
+Flask
+Flask-Cors
+websockets
+pytest
+pytest-asyncio
+uvicorn

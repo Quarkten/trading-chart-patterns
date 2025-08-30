@@ -1,9 +1,10 @@
 import os
 from polygon import RESTClient
 from datetime import date, timedelta
-import matplotlib.pyplot as plt
 from src.data_structures import Candle
 from src.detectors.candlestick_detector import detect_patterns
+from src.chart_generator import generate_chart_image
+import cv2
 
 def get_polygon_client() -> RESTClient:
     """

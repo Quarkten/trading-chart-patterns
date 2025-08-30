@@ -9,13 +9,14 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 from src.data_fetcher import DataFetcher
 from datetime import datetime, timedelta
-import threading
 import asyncio
 from src.yolo_inference import YoloInference
 import base64
 import io
 from PIL import Image
 import os
+
+stream_task = None # Global flag to ensure stream is started only once
 
 def create_app():
     app = Flask(__name__)
@@ -25,30 +26,56 @@ def create_app():
     data_fetcher = DataFetcher(socketio=socketio)
     yolo_detector = YoloInference()
 
+    
+
     @socketio.on('connect')
-    def test_connect():
+    def handle_connect(sid, *args, **kwargs):
+        global stream_task
         print('Client connected')
         emit('my response', {'data': 'Connected'})
-
-    @socketio.on('start_stream')
-    def handle_start_stream(data):
-        symbols = ['SPY'] # Enforce SPY as the only symbol for real-time stream
-        if symbols:
-            print(f"Starting stream for: {symbols}")
-            def run_async_in_thread():
-                # Create a new event loop for this thread
+        # Start the real-time stream as a background task if not already running
+        if stream_task is None or not stream_task.is_alive():
+            print("Starting real-time stream as background task...")
+            symbols = ['SPY'] # Enforce SPY as the only symbol for real-time stream
+            # Use a wrapper to run the async function in the background task
+            def _run_stream_wrapper():
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                try:
-                    # Run the coroutine in this new event loop
-                    loop.run_until_complete(data_fetcher.start_realtime_stream(symbols))
-                finally:
-                    loop.close() # Close the loop when done
-            thread = threading.Thread(target=run_async_in_thread)
-            thread.daemon = True
-            thread.start()
+                loop.run_until_complete(data_fetcher.start_realtime_stream(symbols))
+                loop.close()
+            stream_task = socketio.start_background_task(_run_stream_wrapper)
         else:
-            print("No symbols provided for streaming.")
+            print("Real-time stream already running.")
+
+    @socketio.on('disconnect')
+    def handle_disconnect():
+        global stream_task
+        print('Client disconnected')
+        if stream_task and stream_task.is_alive():
+            # The Alpaca stream runs in its own event loop. To stop it, we must
+            # schedule the stop coroutine to run on that loop using this thread-safe method.
+            if data_fetcher.stream_loop and data_fetcher.stream_loop.is_running():
+                print("Scheduling Alpaca stream to stop...")
+                asyncio.run_coroutine_threadsafe(
+                    data_fetcher.stop_realtime_stream(),
+                    data_fetcher.stream_loop
+                )
+            
+            # For the Finnhub fallback, setting this flag is enough to stop its loop.
+            data_fetcher.should_run = False
+            print("Signaled real-time stream to stop on client disconnect.")
+        else:
+            print("Real-time stream was not running or already stopped on disconnect.")
+
+    @socketio.on('stop_stream')
+    def handle_stop_stream():
+        global stream_task
+        if stream_task and stream_task.is_alive():
+            data_fetcher.should_run = False
+            # The DataFetcher's internal loop should eventually stop.
+            print("Signaled real-time stream to stop via explicit stop_stream event.")
+        else:
+            print("Real-time stream is not running or already stopped.")
 
     @app.route('/candlestick_data', methods=['GET'])
     def get_candlestick_data():
@@ -121,6 +148,8 @@ def create_app():
     
     return app, socketio
 
+app, socketio = create_app()
+
+# Expose the Socket.IO ASGI app for Uvicorn
 if __name__ == '__main__':
-    app, socketio = create_app()
-    socketio.run(app, debug=True, port=5000)
+    socketio.run(app, host="127.0.0.1", port=5000)
