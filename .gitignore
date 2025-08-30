@@ -9,3 +9,7 @@ __pycache__/
 *.cache
 runs/
 /yolov8s.pt
+/venv
+venv/
+*.pyc
+__pycache__/
